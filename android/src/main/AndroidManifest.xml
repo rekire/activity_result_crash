@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+  package="eu.rekisoft.flutter.activity_result_crash.activity_result_crash">
+    <application>
+        <activity android:name="eu.rekisoft.flutter.activity_result_crash.activity_result_crash.SecondActivity"/>
+    </application>
+</manifest>
