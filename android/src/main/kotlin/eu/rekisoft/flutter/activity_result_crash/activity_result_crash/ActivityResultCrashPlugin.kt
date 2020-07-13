@@ -1,7 +1,6 @@
 package eu.rekisoft.flutter.activity_result_crash.activity_result_crash
 
 import android.content.Intent
-import android.preference.PreferenceManager
 import androidx.annotation.NonNull;
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
@@ -15,10 +14,6 @@ import io.flutter.plugin.common.PluginRegistry.Registrar
 
 /** ActivityResultCrashPlugin */
 public class ActivityResultCrashPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
-  /// The MethodChannel that will the communication between Flutter and native Android
-  ///
-  /// This local reference serves to register the plugin with the Flutter Engine and unregister it
-  /// when the Flutter Engine is detached from the Activity
   private lateinit var channel : MethodChannel
   private var binding: ActivityPluginBinding? = null
   private var asyncResult: Result? = null
@@ -28,15 +23,6 @@ public class ActivityResultCrashPlugin: FlutterPlugin, MethodCallHandler, Activi
     channel.setMethodCallHandler(this);
   }
 
-  // This static function is optional and equivalent to onAttachedToEngine. It supports the old
-  // pre-Flutter-1.12 Android projects. You are encouraged to continue supporting
-  // plugin registration via this function while apps migrate to use the new Android APIs
-  // post-flutter-1.12 via https://flutter.dev/go/android-project-migration.
-  //
-  // It is encouraged to share logic between onAttachedToEngine and registerWith to keep
-  // them functionally equivalent. Only one of onAttachedToEngine or registerWith will be called
-  // depending on the user's project. onAttachedToEngine or registerWith must both be defined
-  // in the same class.
   companion object {
     @JvmStatic
     fun registerWith(registrar: Registrar) {
@@ -59,21 +45,36 @@ public class ActivityResultCrashPlugin: FlutterPlugin, MethodCallHandler, Activi
     }
   }
 
-  private fun letItCrash(binding: ActivityPluginBinding, result: Result) {
-    println("Adding ActivityResultListeners")
-    binding.addActivityResultListener(object: PluginRegistry.ActivityResultListener {
-      override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
+  private class DummyListener(
+    private val binding: ActivityPluginBinding,
+    private val result: Result): PluginRegistry.ActivityResultListener {
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
+      // There must be a second listener which should be invoked afterwards to cause the crash.
+      // Since the listeners are in a HashSet we cannot simply control the order so I used this hack
+      return if (firstListener) {
+        firstListener = false
         println("Let it crash by removing the listener")
         binding.removeActivityResultListener(this)
         // assume that you waited for the result
         result.success(42)
-        return true
+        true
+      } else {
+        // won't be called currently due the bug
+        println("Second listener called successfully")
+        false
       }
-    })
-    binding.addActivityResultListener { _, _, _ ->
-      println("Listener 2 called, only executed when the bug is fixed")
-      false
     }
+
+    companion object {
+      private var firstListener = true
+    }
+  }
+
+  private fun letItCrash(binding: ActivityPluginBinding, result: Result) {
+    println("Adding ActivityResultListeners")
+    binding.addActivityResultListener(DummyListener(binding, result))
+    binding.addActivityResultListener(DummyListener(binding, result))
     println("Starting second activity...")
     binding.activity.startActivityForResult(Intent(binding.activity, SecondActivity::class.java), 1)
   }
